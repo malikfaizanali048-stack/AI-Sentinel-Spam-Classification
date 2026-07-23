@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sentinel — Inbox Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0b0f14; --panel:#121822; --border:#1e2733; --text:#e6ecf3;
+  --muted:#7c8aa0; --blue:#3aa0ff; --green:#22e0a0; --red:#ff4d6d; --track:#1c2531;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif;margin:0;padding:24px}
+nav{margin-bottom:20px}
+nav a{color:var(--muted);text-decoration:none;font-weight:600;margin-right:20px;padding-bottom:6px}
+nav a.active{color:var(--blue);border-bottom:2px solid var(--blue)}
+.brand{font-size:1.6rem;font-weight:800;display:flex;align-items:center;gap:8px}
+.brand-sub{color:var(--muted);font-size:0.85rem;margin:2px 0 20px}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.panel-title{font-size:0.9rem;font-weight:700;margin-bottom:10px;letter-spacing:.3px}
+.scan-row{display:flex;justify-content:space-between;align-items:center;background:var(--track);
+  border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:0.85rem;gap:10px}
+.scan-row a{color:var(--blue);font-size:0.75rem;text-decoration:none;white-space:nowrap}
+.tag{font-weight:700;padding:2px 8px;border-radius:6px;font-size:0.72rem}
+.tag.spam{background:rgba(255,77,109,.15);color:var(--red)}
+.tag.suspicious{background:rgba(255,176,32,.15);color:#ffb020}
+.tag.safe{background:rgba(34,224,160,.15);color:var(--green)}
+.status{color:var(--muted);font-size:0.8rem;margin-bottom:14px}
+.rings{display:flex;gap:14px;justify-content:center;margin-top:10px}
+.ring{width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;position:relative}
+.ring-label{color:var(--muted);font-size:0.7rem;margin-top:2px}
+.ring-val{font-weight:800;font-size:1.1rem}
+</style>
+</head>
+<body>
+<div class="brand">🛡️ Sentinel</div>
+<div class="brand-sub">Email Phishing &amp; Spam Detection — Live Inbox Monitor</div>
+<nav><a href="/" class="active">Inbox Monitor</a><a href="/manual">Manual Check</a></nav>
+
+<div class="grid">
+  <div class="panel">
+    <div class="panel-title">Recent Scans</div>
+    <div class="status" id="status">Checking every 45s...</div>
+    <div id="results"></div>
+  </div>
+
+  <div>
+    <div class="panel" style="margin-bottom:18px">
+      <div class="panel-title">Scan Overview</div>
+      <canvas id="donutChart" height="180"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Threat Breakdown</div>
+      <div class="rings" id="rings"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let history = [];
+let donutChart;
+
+function ringHtml(pct, color, label){
+  return `<div class="ring" style="background:conic-gradient(${color} ${pct*3.6}deg, #1c2531 0deg)">
+    <div style="background:var(--panel);width:82px;height:82px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div class="ring-val">${pct}%</div>
+      <div class="ring-label">${label}</div>
+    </div></div>`;
+}
+
+function tagClass(label){
+  if(label==="SPAM") return "spam";
+  if(label==="SUSPICIOUS") return "suspicious";
+  return "safe";
+}
+
+async function checkInbox(){
+  document.getElementById("status").innerText = "Checking...";
+  const res = await fetch("/api/check-inbox");
+  const data = await res.json();
+  history = data;
+
+  let html = "";
+  data.forEach(e=>{
+    html += `<div class="scan-row">
+      <div>
+        <span class="tag ${tagClass(e.label)}">${e.label}</span>
+        <div style="margin-top:4px">${e.subject || "(no subject)"}</div>
+        <div style="color:var(--muted);font-size:0.75rem">${e.from} · score ${e.score}</div>
+      </div>
+      ${e.link ? `<a href="${e.link}" target="_blank">Open ↗</a>` : `<span style="color:var(--muted);font-size:0.75rem">No link</span>`}
+    </div>`;
+});
+  document.getElementById("results").innerHTML = html || "<div style='color:var(--muted)'>No new emails.</div>";
+  document.getElementById("status").innerText = "Last checked: " + new Date().toLocaleTimeString();
+
+  updateCharts(data);
+}
+
+function updateCharts(data){
+  const spam = data.filter(e=>e.label==="SPAM").length;
+  const suspicious = data.filter(e=>e.label==="SUSPICIOUS").length;
+  const safe = data.filter(e=>e.label==="NOT SPAM").length;
+  const total = data.length || 1;
+
+  const ctx = document.getElementById("donutChart");
+  const chartData = {
+    labels: ["Spam","Suspicious","Safe"],
+    datasets: [{ data:[spam,suspicious,safe], backgroundColor:["#ff4d6d","#ffb020","#22e0a0"], borderWidth:0 }]
+  };
+  if(donutChart){ donutChart.data = chartData; donutChart.update(); }
+  else {
+    donutChart = new Chart(ctx, {
+      type:"doughnut", data:chartData,
+      options:{ plugins:{legend:{labels:{color:"#7c8aa0"}}} , cutout:"65%" }
+    });
+  }
+
+  document.getElementById("rings").innerHTML =
+    ringHtml(Math.round(spam/total*100), "#ff4d6d", "Spam") +
+    ringHtml(Math.round(suspicious/total*100), "#ffb020", "Suspicious") +
+    ringHtml(Math.round(safe/total*100), "#22e0a0", "Safe");
+}
+
+checkInbox();
+setInterval(checkInbox, 45000);
+</script>
+</body>
+</html>

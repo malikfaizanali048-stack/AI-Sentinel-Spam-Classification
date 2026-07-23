@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+data/credentials/
+data/raw/
+data/processed/*.csv
+data/processed/*.pkl
+data/processed/*.pt
+data/processed/*.json
+!data/processed/.gitkeep

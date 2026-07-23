@@ -1,0 +1,35 @@
+ENHANCED MODEL RESULTS
+(Trained on: SpamAssassin + CyberCop + Enron + 70% of E-PhishLLM)
+Model file: data/processed/lgbm_model_enhanced.pkl
+============================================================
+
+ENHANCED SCORE - Nazario (classic phishing)
+============================================================
+Samples: 3065  |  Label distribution: {1: 1565, 0: 1500}
+
+                precision    recall  f1-score   support
+Not Spam/Legit       0.92      0.92      0.92      1500
+ Spam/Phishing       0.93      0.92      0.92      1565
+
+      accuracy                           0.92      3065
+     macro avg       0.92      0.92      0.92      3065
+  weighted avg       0.92      0.92      0.92      3065
+
+ROC-AUC: 0.9733414270500533
+PR-AUC:  0.9746570036248964
+
+
+ENHANCED SCORE - E-PhishLLM 30% Holdout (unseen modern phishing)
+============================================================
+Samples: 3451  |  Label distribution: {1: 1799, 0: 1652}
+
+                precision    recall  f1-score   support
+Not Spam/Legit       0.88      0.94      0.91      1652
+ Spam/Phishing       0.94      0.88      0.91      1799
+
+      accuracy                           0.91      3451
+     macro avg       0.91      0.91      0.91      3451
+  weighted avg       0.91      0.91      0.91      3451
+
+ROC-AUC: 0.9703850807618438
+PR-AUC:  0.976631570989957

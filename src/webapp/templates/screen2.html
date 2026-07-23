@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sentinel — Manual Check</title>
+<style>
+:root{
+  --bg:#0b0f14; --panel:#121822; --border:#1e2733; --text:#e6ecf3;
+  --muted:#7c8aa0; --blue:#3aa0ff; --green:#22e0a0; --red:#ff4d6d; --track:#1c2531;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif;margin:0;padding:24px}
+nav a{color:var(--muted);text-decoration:none;font-weight:600;margin-right:20px}
+nav a.active{color:var(--blue);border-bottom:2px solid var(--blue)}
+.brand{font-size:1.6rem;font-weight:800}
+.brand-sub{color:var(--muted);font-size:0.85rem;margin:2px 0 20px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px}
+.panel-title{font-size:0.9rem;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+input,textarea{width:100%;background:var(--track);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:10px;margin-bottom:10px;font-family:inherit}
+button{background:linear-gradient(90deg,var(--blue),var(--green));color:#04121a;font-weight:700;
+  border:none;border-radius:8px;padding:10px 22px;cursor:pointer}
+.btn-secondary{background:var(--track);color:var(--muted);border:1px solid var(--border);padding:6px 14px;
+  font-size:0.8rem;border-radius:6px;cursor:pointer}
+.result-card{background:var(--track);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-top:10px}
+.tag{font-weight:700;padding:2px 8px;border-radius:6px;font-size:0.72rem}
+.tag.spam{background:rgba(255,77,109,.15);color:var(--red)}
+.tag.suspicious{background:rgba(255,176,32,.15);color:#ffb020}
+.tag.safe{background:rgba(34,224,160,.15);color:var(--green)}
+input[type=file]{background:var(--track);padding:14px;border:1px dashed var(--border)}
+.hist-meta{color:var(--muted);font-size:0.72rem;margin-top:4px}
+.hist-detail{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
+  white-space:pre-wrap;color:var(--muted);font-size:0.8rem;max-height:260px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div class="brand">🛡️ Sentinel</div>
+<div class="brand-sub">Manual &amp; Batch Email Check</div>
+<nav><a href="/">Inbox Monitor</a><a href="/manual" class="active">Manual Check</a></nav>
+
+<div class="panel">
+  <div class="panel-title">Scan a Single Email</div>
+  <input id="subject" placeholder="Email Subject">
+  <textarea id="body" rows="6" placeholder="Email Body"></textarea>
+  <button onclick="checkSingle()">Analyze Email</button>
+  <div id="singleResult"></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Batch Upload (up to 50 .json or .eml files)</div>
+  <input type="file" id="fileInput" multiple accept=".json,.eml">
+  <br><br>
+  <button onclick="checkBatch()">Upload &amp; Check</button>
+  <div id="batchResults"></div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">
+    <span>Scan History</span>
+    <button class="btn-secondary" onclick="clearHistory()">Clear History</button>
+  </div>
+  <div id="historyResults"></div>
+</div>
+
+<script>
+function tagClass(label){
+  if(label==="SPAM") return "spam";
+  if(label==="SUSPICIOUS") return "suspicious";
+  return "safe";
+}
+
+async function checkSingle(){
+  const subject = document.getElementById("subject").value;
+  const body = document.getElementById("body").value;
+  const res = await fetch("/api/check-single", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({subject, body})
+  });
+  const data = await res.json();
+  document.getElementById("singleResult").innerHTML =
+    `<div class="result-card"><span class="tag ${tagClass(data.label)}">${data.label}</span>
+     &nbsp; score ${data.score}</div>`;
+  loadHistory();
+}
+
+async function checkBatch(){
+  const files = document.getElementById("fileInput").files;
+  const formData = new FormData();
+  for(let f of files) formData.append("files", f);
+  const res = await fetch("/api/check-batch-files", {method:"POST", body: formData});
+  const data = await res.json();
+  let html = "";
+  data.forEach(r=>{
+    html += r.error
+      ? `<div class="result-card">${r.filename}: ERROR - ${r.error}</div>`
+      : `<div class="result-card"><span class="tag ${tagClass(r.label)}">${r.label}</span>
+         &nbsp; ${r.score} — ${r.filename} — ${r.subject}</div>`;
+  });
+  document.getElementById("batchResults").innerHTML = html;
+  loadHistory();
+}
+
+function escapeHtml(str){
+  if(!str) return "(no content)";
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+async function loadHistory(){
+  const res = await fetch("/api/history");
+  const data = await res.json();
+  let html = "";
+  data.forEach(h=>{
+    html += `<div class="result-card" id="hist-${h.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1;cursor:pointer" onclick="toggleDetail('${h.id}')">
+          <span class="tag ${tagClass(h.label)}">${h.label}</span>
+          &nbsp; ${h.score} — ${h.subject || "(no subject)"}
+          <div class="hist-meta">${h.timestamp} · ${h.type}${h.filename ? " · "+h.filename : ""}</div>
+        </div>
+        <button class="btn-secondary" onclick="deleteEntry('${h.id}')">Delete</button>
+      </div>
+      <div class="hist-detail" id="detail-${h.id}">
+        <strong>Subject:</strong> ${escapeHtml(h.subject)}<br><br>
+        <strong>Body:</strong><br>${escapeHtml(h.body)}
+      </div>
+    </div>`;
+  });
+  document.getElementById("historyResults").innerHTML = html || "<div style='color:var(--muted)'>No scans yet.</div>";
+}
+
+function toggleDetail(id){
+  const el = document.getElementById("detail-" + id);
+  el.style.display = el.style.display === "block" ? "none" : "block";
+}
+
+async function deleteEntry(id){
+  await fetch(`/api/history/delete/${id}`, {method:"POST"});
+  loadHistory();
+}
+
+async function clearHistory(){
+  await fetch("/api/history/clear", {method:"POST"});
+  loadHistory();
+}
+
+loadHistory();
+</script>
+</body>
+</html>
