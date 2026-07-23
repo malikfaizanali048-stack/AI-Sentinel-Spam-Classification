@@ -62,7 +62,7 @@ def screen2():
 
 @app.route("/api/check-inbox")
 def check_inbox():
-    emails = fetch_recent_emails(limit=10)  # <-- CHANGE THIS NUMBER to adjust inbox check limit
+    emails = fetch_recent_emails(limit=30)  # <-- CHANGE THIS NUMBER to adjust inbox check limit
     results = []
 
     for e in emails:

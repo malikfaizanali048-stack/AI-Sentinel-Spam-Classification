@@ -91,7 +91,7 @@ async function checkInbox(){
       </div>
       ${e.link ? `<a href="${e.link}" target="_blank">Open ↗</a>` : `<span style="color:var(--muted);font-size:0.75rem">No link</span>`}
     </div>`;
-});
+});ss
   document.getElementById("results").innerHTML = html || "<div style='color:var(--muted)'>No new emails.</div>";
   document.getElementById("status").innerText = "Last checked: " + new Date().toLocaleTimeString();
 
