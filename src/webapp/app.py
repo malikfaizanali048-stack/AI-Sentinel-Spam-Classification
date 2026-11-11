@@ -62,7 +62,7 @@ def screen2():
 
 @app.route("/api/check-inbox")
 def check_inbox():
-    emails = fetch_recent_emails(limit=30)  # <-- CHANGE THIS NUMBER to adjust inbox check limit
+    emails = fetch_recent_emails(limit=10)  # <-- CHANGE THIS NUMBER to adjust inbox check limit
     results = []
 
     for e in emails:
@@ -114,8 +114,9 @@ def check_batch_files():
 
     for f in files[:50]:
         try:
+            assert f.filename is not None
             if f.filename.endswith(".json"):
-                data = json.load(f)
+                data = json.load(f) # type: ignore
                 subject, body = data.get("subject", ""), data.get("body", "")
             else:
                 msg = email.message_from_bytes(f.read(), policy=policy.default)
